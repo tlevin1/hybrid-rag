@@ -5,8 +5,9 @@
 Retrieval-augmented question answering with three interchangeable retrievers —
 **BM25 keyword search, Chroma vector search, and a hybrid of the two** — plus a
 **cross-encoder reranker fine-tuned in PyTorch**, the same retrieval on
-**Azure AI Search**, and an evaluation that measures what each stage does to
-answer quality, using Arize Phoenix evaluators.
+**Azure AI Search**, request tracing and feedback in **MongoDB**, and an
+evaluation that measures what each stage does to answer quality, using Arize
+Phoenix evaluators.
 
 **Result:** hybrid retrieval answers **78.75%** of questions correctly (63 of 80) versus
 72.5% for BM25 and 70.0% for vector search alone. The gap is widest on
@@ -283,6 +284,60 @@ Two engineering details:
   `AZURE_SEARCH_KEY` in the environment or a gitignored `.env`. The tests use a
   fake client, so CI needs neither.
 
+## Monitoring: request traces in MongoDB
+
+With `MONGODB_URI` set, every `/ask` is written to MongoDB
+(`hybrid_rag/traces.py`), the API returns a `trace_id`, and two endpoints open
+up: `POST /feedback` (thumbs up/down on an answer) and `GET /stats`.
+
+**Why a document store:** each trace is naturally nested: a variable-length
+list of sources, each with its rank in every retriever, plus feedback added
+later. One document per request, no joins:
+
+```json
+{
+  "_id": "99f2b69f…", "ts": "2026-10-11T19:47:05Z",
+  "question": "At age 18, how did the author describe…", "mode": "hybrid",
+  "refused": true, "model": "claude-haiku-4-5",
+  "latency_ms": {"retrieval": 114.9, "generation": 1620.0, "total": 1734.9},
+  "sources": [{"chunk_id": "c008", "score": 0.0318, "ranks": {"bm25": 4, "vector": 2}}, "…"],
+  "feedback": {"rating": -1, "ts": "2026-10-11T19:47:09Z"}
+}
+```
+
+- **Indexes:** `(mode, ts)` serves the monitoring queries (time window,
+  grouped by mode; a test checks the query plan uses it), and a **TTL index**
+  on `ts` expires traces after 30 days, so the collection can't grow without
+  bound and old questions aren't kept indefinitely.
+- **Passage text isn't stored**, only chunk ids: it's already in the corpus.
+- **`GET /stats`** is one aggregation per window: requests, refusal rate, p50
+  and p95 latency (MongoDB's `$percentile`), feedback counts per mode, plus
+  the most recent refusals with the passages each one retrieved.
+- **Tracing never breaks answering:** if MongoDB is down, `/ask` still answers,
+  returns `trace_id: null` and logs the error (tested).
+
+A real run (10 paraphrased questions per mode, through the actual server):
+
+| Mode | Requests | Refusal rate | p50 latency | p95 latency |
+|---|---|---|---|---|
+| BM25 | 10 | 60% | 1.26 s | 2.04 s |
+| Vector | 10 | 30% | 1.29 s | 2.43 s |
+| Hybrid | 10 | 30% | 1.28 s | 2.18 s |
+
+Retrieval takes ~0.1 s of that; generation is over 90%, so retrieval speed
+isn't where latency work would pay off. The refusal list is the operational
+version of the eval's finding: each refusal shows which passages were
+retrieved, which separates retrieval misses from over-cautious answers.
+
+**A bug the tests caught:** the stats window originally ended at "now", and
+30 traces written just before a query were counted as 29. MongoDB stores
+milliseconds, so a trace written in the same millisecond as the query fell
+outside `ts < now`. The window is now open-ended unless an end is given, with
+a regression test.
+
+The trace-store tests run against a **real MongoDB**: locally in Docker, in
+CI as a service container. API tests use an in-memory store.
+
 ### Choices in the eval, and why
 
 - **Reference-based correctness instead of Phoenix's built-in correctness
@@ -305,10 +360,12 @@ python3.13 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt          # app + tests
 pip install -r requirements-eval.txt         # Phoenix, for the answer-quality eval
 
-python -m pytest -q                          # 44 tests: offline, no model download, no API key
+python -m pytest -q                          # 59 tests: no model download, no API key
+                                             # (9 need MongoDB: docker run -d -p 127.0.0.1:27017:27017 mongo:8)
 
 export ANTHROPIC_API_KEY=...
 uvicorn hybrid_rag.app:app --reload          # downloads the essay and the embedding model on first run
+MONGODB_URI=mongodb://localhost:27017 uvicorn hybrid_rag.app:app   # with tracing, /feedback and /stats
 
 python -m evals.retrieval_eval               # free: exact retrieval metrics
 python -m evals.phoenix_eval                 # ~6 min, about $1–3 on Haiku: answers + Phoenix judges
@@ -340,7 +397,8 @@ hybrid_rag/
   rerank.py      cross-encoder reranking (PyTorch / transformers)
   azure_search.py  Azure AI Search index: keyword, vector, managed hybrid
   generate.py    grounded answers with citations
-  app.py         FastAPI: POST /ask {question, mode, top_k}
+  app.py         FastAPI: POST /ask {question, mode, top_k}, POST /feedback, GET /stats
+  traces.py      MongoDB trace store: indexes, TTL, monitoring aggregation
 evals/
   generate_questions.py   direct + paraphrased question set
   retrieval_eval.py       hit@k, MRR against each question's source chunk
