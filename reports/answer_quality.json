@@ -1,0 +1,89 @@
+{
+  "direct": {
+    "bm25": {
+      "n": 40,
+      "precision@4": 0.294,
+      "ndcg@4": 0.912,
+      "hit": 0.95,
+      "correct": 0.925,
+      "faithful": 1.0,
+      "refused": 0.05
+    },
+    "hybrid": {
+      "n": 40,
+      "precision@4": 0.294,
+      "ndcg@4": 0.846,
+      "hit": 0.925,
+      "correct": 0.9,
+      "faithful": 0.973,
+      "refused": 0.075
+    },
+    "vector": {
+      "n": 40,
+      "precision@4": 0.287,
+      "ndcg@4": 0.764,
+      "hit": 0.85,
+      "correct": 0.8,
+      "faithful": 1.0,
+      "refused": 0.15
+    }
+  },
+  "paraphrased": {
+    "bm25": {
+      "n": 40,
+      "precision@4": 0.206,
+      "ndcg@4": 0.505,
+      "hit": 0.6,
+      "correct": 0.525,
+      "faithful": 0.957,
+      "refused": 0.425
+    },
+    "hybrid": {
+      "n": 40,
+      "precision@4": 0.281,
+      "ndcg@4": 0.654,
+      "hit": 0.825,
+      "correct": 0.675,
+      "faithful": 0.964,
+      "refused": 0.3
+    },
+    "vector": {
+      "n": 40,
+      "precision@4": 0.287,
+      "ndcg@4": 0.613,
+      "hit": 0.75,
+      "correct": 0.6,
+      "faithful": 0.96,
+      "refused": 0.375
+    }
+  },
+  "all": {
+    "bm25": {
+      "n": 80,
+      "precision@4": 0.25,
+      "ndcg@4": 0.709,
+      "hit": 0.775,
+      "correct": 0.725,
+      "faithful": 0.984,
+      "refused": 0.237
+    },
+    "hybrid": {
+      "n": 80,
+      "precision@4": 0.287,
+      "ndcg@4": 0.75,
+      "hit": 0.875,
+      "correct": 0.787,
+      "faithful": 0.969,
+      "refused": 0.188
+    },
+    "vector": {
+      "n": 80,
+      "precision@4": 0.287,
+      "ndcg@4": 0.688,
+      "hit": 0.8,
+      "correct": 0.7,
+      "faithful": 0.983,
+      "refused": 0.263
+    }
+  }
+}

@@ -87,6 +87,19 @@ def answer_all(questions: list[dict]) -> list[dict]:
         return list(pool.map(run, rows))
 
 
+def save_answers(rows: list[dict]) -> None:
+    """Store retrieved chunks by id only: the essay is downloaded, not committed,
+    and full passages in every row would republish most of it."""
+    slim = [{**r, "retrieved": [d["chunk_id"] for d in r["retrieved"]]} for r in rows]
+    ANSWERS.write_text("".join(json.dumps(r) + "\n" for r in slim))
+
+
+def load_answers() -> list[dict]:
+    text = {c.id: c.text for c in load_chunks()}
+    rows = [json.loads(line) for line in ANSWERS.read_text().splitlines()]
+    return [{**r, "retrieved": [{"chunk_id": cid, "text": text[cid]} for cid in r["retrieved"]]} for r in rows]
+
+
 # 2-3. Judge
 
 
@@ -145,10 +158,10 @@ def main() -> None:
     REPORTS.mkdir(exist_ok=True)
 
     if a.reuse_answers:
-        rows = [json.loads(line) for line in ANSWERS.read_text().splitlines()]
+        rows = load_answers()
     else:
         rows = answer_all(load_questions()[: a.limit])
-        ANSWERS.write_text("".join(json.dumps(r) + "\n" for r in rows))
+        save_answers(rows)
         print(f"Answered {len(rows)} question x retriever pairs -> {ANSWERS}")
 
     scored = judge(rows)
