@@ -1,0 +1,9 @@
+arize-phoenix==20.20.0
+arize-phoenix-client==3.5.0
+arize-phoenix-evals==3.9.2
+openinference-instrumentation==0.1.71
+openinference-semantic-conventions==0.1.41
+opentelemetry-exporter-otlp==1.45.1
+opentelemetry-sdk==1.45.1
+pandas==3.0.6
+scikit-learn==1.9.1
