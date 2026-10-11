@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+.DS_Store
+# Downloaded corpus (copyrighted; fetched and checksum-verified at runtime) and local index
+data/paul_graham_essay.txt
+data/chroma/
