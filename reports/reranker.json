@@ -1,0 +1,168 @@
+{
+  "models": {
+    "direct": {
+      "pretrained": {
+        "hit@1": 0.9,
+        "hit@4": 1.0,
+        "mrr": 0.946
+      },
+      "seed0": {
+        "hit@1": 0.9,
+        "hit@4": 1.0,
+        "mrr": 0.946
+      },
+      "seed1": {
+        "hit@1": 0.9,
+        "hit@4": 1.0,
+        "mrr": 0.946
+      },
+      "seed2": {
+        "hit@1": 0.9,
+        "hit@4": 1.0,
+        "mrr": 0.944
+      }
+    },
+    "paraphrased": {
+      "pretrained": {
+        "hit@1": 0.525,
+        "hit@4": 0.725,
+        "mrr": 0.63
+      },
+      "seed0": {
+        "hit@1": 0.625,
+        "hit@4": 0.775,
+        "mrr": 0.709
+      },
+      "seed1": {
+        "hit@1": 0.625,
+        "hit@4": 0.775,
+        "mrr": 0.702
+      },
+      "seed2": {
+        "hit@1": 0.625,
+        "hit@4": 0.775,
+        "mrr": 0.702
+      }
+    },
+    "all": {
+      "pretrained": {
+        "hit@1": 0.713,
+        "hit@4": 0.863,
+        "mrr": 0.788
+      },
+      "seed0": {
+        "hit@1": 0.762,
+        "hit@4": 0.887,
+        "mrr": 0.827
+      },
+      "seed1": {
+        "hit@1": 0.762,
+        "hit@4": 0.887,
+        "mrr": 0.824
+      },
+      "seed2": {
+        "hit@1": 0.762,
+        "hit@4": 0.887,
+        "mrr": 0.823
+      }
+    }
+  },
+  "vs_pretrained": {
+    "direct": {
+      "seed0": {
+        "wins": 0,
+        "losses": 0,
+        "ties": 40,
+        "sign_test_p": 1.0,
+        "mrr_diff_95ci": [
+          0.0,
+          0.0
+        ]
+      },
+      "seed1": {
+        "wins": 0,
+        "losses": 0,
+        "ties": 40,
+        "sign_test_p": 1.0,
+        "mrr_diff_95ci": [
+          0.0,
+          0.0
+        ]
+      },
+      "seed2": {
+        "wins": 0,
+        "losses": 1,
+        "ties": 39,
+        "sign_test_p": 1.0,
+        "mrr_diff_95ci": [
+          -0.006,
+          0.0
+        ]
+      }
+    },
+    "paraphrased": {
+      "seed0": {
+        "wins": 12,
+        "losses": 1,
+        "ties": 27,
+        "sign_test_p": 0.0034,
+        "mrr_diff_95ci": [
+          0.014,
+          0.15
+        ]
+      },
+      "seed1": {
+        "wins": 13,
+        "losses": 1,
+        "ties": 26,
+        "sign_test_p": 0.0018,
+        "mrr_diff_95ci": [
+          0.013,
+          0.136
+        ]
+      },
+      "seed2": {
+        "wins": 13,
+        "losses": 1,
+        "ties": 26,
+        "sign_test_p": 0.0018,
+        "mrr_diff_95ci": [
+          0.013,
+          0.136
+        ]
+      }
+    },
+    "all": {
+      "seed0": {
+        "wins": 12,
+        "losses": 1,
+        "ties": 67,
+        "sign_test_p": 0.0034,
+        "mrr_diff_95ci": [
+          0.007,
+          0.078
+        ]
+      },
+      "seed1": {
+        "wins": 13,
+        "losses": 1,
+        "ties": 66,
+        "sign_test_p": 0.0018,
+        "mrr_diff_95ci": [
+          0.006,
+          0.07
+        ]
+      },
+      "seed2": {
+        "wins": 13,
+        "losses": 2,
+        "ties": 65,
+        "sign_test_p": 0.0074,
+        "mrr_diff_95ci": [
+          0.005,
+          0.069
+        ]
+      }
+    }
+  }
+}
