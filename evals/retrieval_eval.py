@@ -7,11 +7,13 @@ written from, and how high? No LLM involved, so it's free and deterministic.
 This undercounts slightly: another chunk can also answer a question (the
 LLM-judged relevance in phoenix_eval.py catches that).
 
-    python -m evals.retrieval_eval        # writes reports/retrieval.json
+    python -m evals.retrieval_eval              # writes reports/retrieval.json
+    python -m evals.retrieval_eval --rerank     # also hybrid + each cross-encoder (needs requirements-train.txt)
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -21,6 +23,7 @@ from hybrid_rag.retrieval import MODES, Retriever
 QUESTIONS = Path(__file__).with_name("questions.jsonl")
 REPORT = Path(__file__).resolve().parent.parent / "reports" / "retrieval.json"
 DEPTH = 20
+FINETUNED = Path(__file__).resolve().parent.parent / "models" / "reranker-ft"
 
 
 def load_questions() -> list[dict]:
@@ -41,23 +44,41 @@ def score(ranks: list[int | None]) -> dict:
     }
 
 
+def rerankers() -> dict:
+    """Cross-encoders to compare, keyed by mode name. Loaded lazily so the base
+    eval doesn't need PyTorch."""
+    from hybrid_rag.rerank import PRETRAINED, CrossEncoder
+
+    found = {"hybrid+ms-marco": CrossEncoder(PRETRAINED)}
+    if FINETUNED.exists():
+        found["hybrid+finetuned"] = CrossEncoder(str(FINETUNED))
+    return found
+
+
 def main() -> None:
+    p = argparse.ArgumentParser()
+    p.add_argument("--rerank", action="store_true", help="also evaluate cross-encoder reranking")
+    a = p.parse_args()
     retriever = Retriever(load_chunks(), persist_dir="data/chroma")
     questions = load_questions()
+    searchers = {mode: (lambda q, m=mode: retriever.search(q, DEPTH, m)) for mode in MODES}
+    if a.rerank:
+        for name, ce in rerankers().items():
+            searchers[name] = lambda q, ce=ce: retriever.search_reranked(q, ce, DEPTH)
     report: dict = {}
     for style in ("direct", "paraphrased", "all"):
         qs = [q for q in questions if style == "all" or q["style"] == style]
         report[style] = {
-            mode: score([source_rank(retriever.search(q["question"], DEPTH, mode), q["source_chunk"]) for q in qs])
-            for mode in MODES
+            name: score([source_rank(search(q["question"]), q["source_chunk"]) for q in qs])
+            for name, search in searchers.items()
         }
     REPORT.parent.mkdir(exist_ok=True)
     REPORT.write_text(json.dumps(report, indent=2))
 
-    print(f"{'questions':12} {'retriever':8} {'hit@1':>6} {'hit@4':>6} {'MRR@20':>7}")
+    print(f"{'questions':17} {'retriever':17} {'hit@1':>6} {'hit@4':>6} {'MRR@20':>7}")
     for style, by_mode in report.items():
         for mode, m in by_mode.items():
-            print(f"{style + ' (' + str(m['n']) + ')':12} {mode:8} {m['hit@1']:>6} {m['hit@4']:>6} {m['mrr@20']:>7}")
+            print(f"{style + ' (' + str(m['n']) + ')':17} {mode:17} {m['hit@1']:>6} {m['hit@4']:>6} {m['mrr@20']:>7}")
 
 
 if __name__ == "__main__":

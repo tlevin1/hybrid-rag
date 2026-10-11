@@ -147,9 +147,16 @@ class Retriever:
         if mode == "vector":
             return self.vector.search(query, k)
         if mode == "hybrid":
-            rankings = {
-                "bm25": self.bm25.search(query, self.candidates),
-                "vector": self.vector.search(query, self.candidates),
-            }
-            return reciprocal_rank_fusion(rankings)[:k]
+            return self.fused_candidates(query)[:k]
         raise ValueError(f"unknown retrieval mode {mode!r}; expected one of {MODES}")
+
+    def fused_candidates(self, query: str) -> list[Hit]:
+        """The full hybrid candidate list, before cutting to k: what a reranker reorders."""
+        return reciprocal_rank_fusion({
+            "bm25": self.bm25.search(query, self.candidates),
+            "vector": self.vector.search(query, self.candidates),
+        })[: self.candidates]
+
+    def search_reranked(self, query: str, reranker, k: int = 4) -> list[Hit]:
+        """Hybrid candidates (top 20) reordered by a cross-encoder, then cut to k."""
+        return reranker.rerank(query, self.fused_candidates(query), k)
