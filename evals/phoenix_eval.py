@@ -20,6 +20,8 @@ Phoenix traces, so the numbers don't depend on a running Phoenix server.
 
     python -m evals.phoenix_eval                   # answer + judge (~$1-3 on Haiku)
     python -m evals.phoenix_eval --reuse-answers   # re-judge saved answers only
+    python -m evals.phoenix_eval --modes hybrid+ms-marco hybrid+finetuned
+        # add reranked modes; other modes' saved answers and scores are kept
 """
 
 from __future__ import annotations
@@ -43,7 +45,9 @@ from hybrid_rag.retrieval import MODES, Hit, Retriever
 from .metrics import ndcg_at_k, phoenix_scores, summarize
 from .retrieval_eval import load_questions
 
-REPORTS = Path(__file__).resolve().parent.parent / "reports"
+ROOT = Path(__file__).resolve().parent.parent
+REPORTS = ROOT / "reports"
+RERANK_MODES = {"hybrid+ms-marco": None, "hybrid+finetuned": ROOT / "models" / "reranker-ft"}
 ANSWERS = REPORTS / "answers.jsonl"
 REPORT = REPORTS / "answer_quality.json"
 TOP_K = 4
@@ -64,15 +68,26 @@ declines to answer."""
 # 1. Answer
 
 
-def answer_all(questions: list[dict]) -> list[dict]:
+def searcher(mode: str, retriever):
+    if mode in MODES:
+        return lambda q: retriever.search(q, k=TOP_K, mode=mode)
+    from hybrid_rag.rerank import PRETRAINED, CrossEncoder  # PyTorch only when reranking
+
+    path = RERANK_MODES[mode]
+    ce = CrossEncoder(str(path) if path else PRETRAINED)
+    return lambda q: retriever.search_reranked(q, ce, k=TOP_K)
+
+
+def answer_all(questions: list[dict], modes: list[str]) -> list[dict]:
     retriever = Retriever(load_chunks(), persist_dir="data/chroma")
     client = anthropic.Anthropic()
     # Retrieve serially (fast, and it keeps Chroma single-threaded), then
     # parallelize only the LLM calls.
     rows = []
-    for q in questions:
-        for mode in MODES:
-            hits = retriever.search(q["question"], k=TOP_K, mode=mode)
+    for mode in modes:
+        search = searcher(mode, retriever)
+        for q in questions:
+            hits = search(q["question"])
             rows.append({
                 "qid": q["id"], "style": q["style"], "mode": mode, "question": q["question"],
                 "reference": q["reference"], "source_chunk": q["source_chunk"],
@@ -154,26 +169,37 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--reuse-answers", action="store_true", help="re-judge reports/answers.jsonl")
     p.add_argument("--limit", type=int, help="only the first N questions (a cheap smoke test)")
+    p.add_argument("--modes", nargs="+", default=list(MODES), choices=[*MODES, *RERANK_MODES])
     a = p.parse_args()
     REPORTS.mkdir(exist_ok=True)
 
+    scores_csv = REPORTS / "answer_scores.csv"
     if a.reuse_answers:
         rows = load_answers()
+        scored = judge(rows)
     else:
-        rows = answer_all(load_questions()[: a.limit])
+        new_rows = answer_all(load_questions()[: a.limit], a.modes)
+        new_scored = judge(new_rows)
+        # Keep earlier runs' answers and scores for modes not re-run this time.
+        old_rows = [r for r in load_answers() if r["mode"] not in a.modes] if ANSWERS.exists() else []
+        old_scored = pd.read_csv(scores_csv) if scores_csv.exists() else pd.DataFrame()
+        if len(old_scored):
+            old_scored = old_scored[~old_scored["mode"].isin(a.modes)]
+        rows = old_rows + new_rows
+        scored = pd.concat([old_scored, new_scored], ignore_index=True)
         save_answers(rows)
-        print(f"Answered {len(rows)} question x retriever pairs -> {ANSWERS}")
+        print(f"Answered {len(new_rows)} question x retriever pairs -> {ANSWERS}")
 
-    scored = judge(rows)
-    scored.to_csv(REPORTS / "answer_scores.csv", index=False)
+    scored.to_csv(scores_csv, index=False)
     report = summarize(scored)
     REPORT.write_text(json.dumps(report, indent=2))
 
-    print(f"\n{'questions':18} {'retriever':8} {'prec@4':>7} {'ndcg@4':>7} {'hit':>5} {'correct':>8} {'faithful':>9} {'refused':>8}")
+    print(f"\n{'questions':18} {'retriever':17} {'prec@4':>7} {'ndcg@4':>7} {'hit':>5} {'correct':>8} {'faithful':>9} {'refused':>8}")
+    order = [*MODES, *RERANK_MODES]
     for style, by_mode in report.items():
-        for mode in MODES:
+        for mode in sorted(by_mode, key=order.index):
             m = by_mode[mode]
-            print(f"{style + ' (' + str(m['n']) + ')':18} {mode:8} {m['precision@4']:>7} {m['ndcg@4']:>7} "
+            print(f"{style + ' (' + str(m['n']) + ')':18} {mode:17} {m['precision@4']:>7} {m['ndcg@4']:>7} "
                   f"{m['hit']:>5} {m['correct']:>8} {m['faithful']:>9} {m['refused']:>8}")
 
 

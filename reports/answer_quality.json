@@ -18,6 +18,24 @@
       "faithful": 0.973,
       "refused": 0.075
     },
+    "hybrid+finetuned": {
+      "n": 40,
+      "precision@4": 0.35,
+      "ndcg@4": 0.982,
+      "hit": 1.0,
+      "correct": 1.0,
+      "faithful": 1.0,
+      "refused": 0.0
+    },
+    "hybrid+ms-marco": {
+      "n": 40,
+      "precision@4": 0.338,
+      "ndcg@4": 0.988,
+      "hit": 1.0,
+      "correct": 1.0,
+      "faithful": 1.0,
+      "refused": 0.0
+    },
     "vector": {
       "n": 40,
       "precision@4": 0.287,
@@ -47,6 +65,24 @@
       "faithful": 0.964,
       "refused": 0.3
     },
+    "hybrid+finetuned": {
+      "n": 40,
+      "precision@4": 0.381,
+      "ndcg@4": 0.801,
+      "hit": 0.875,
+      "correct": 0.775,
+      "faithful": 0.97,
+      "refused": 0.175
+    },
+    "hybrid+ms-marco": {
+      "n": 40,
+      "precision@4": 0.35,
+      "ndcg@4": 0.767,
+      "hit": 0.825,
+      "correct": 0.725,
+      "faithful": 1.0,
+      "refused": 0.25
+    },
     "vector": {
       "n": 40,
       "precision@4": 0.287,
@@ -75,6 +111,24 @@
       "correct": 0.787,
       "faithful": 0.969,
       "refused": 0.188
+    },
+    "hybrid+finetuned": {
+      "n": 80,
+      "precision@4": 0.366,
+      "ndcg@4": 0.892,
+      "hit": 0.938,
+      "correct": 0.887,
+      "faithful": 0.986,
+      "refused": 0.087
+    },
+    "hybrid+ms-marco": {
+      "n": 80,
+      "precision@4": 0.344,
+      "ndcg@4": 0.878,
+      "hit": 0.912,
+      "correct": 0.863,
+      "faithful": 1.0,
+      "refused": 0.125
     },
     "vector": {
       "n": 80,
