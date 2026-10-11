@@ -4,8 +4,9 @@
 
 Retrieval-augmented question answering with three interchangeable retrievers —
 **BM25 keyword search, Chroma vector search, and a hybrid of the two** — plus a
-**cross-encoder reranker fine-tuned in PyTorch**, and an evaluation that
-measures what each stage does to answer quality, using Arize Phoenix evaluators.
+**cross-encoder reranker fine-tuned in PyTorch**, the same retrieval on
+**Azure AI Search**, and an evaluation that measures what each stage does to
+answer quality, using Arize Phoenix evaluators.
 
 **Result:** hybrid retrieval answers **78.75%** of questions correctly (63 of 80) versus
 72.5% for BM25 and 70.0% for vector search alone. The gap is widest on
@@ -19,6 +20,10 @@ cross-encoder and **88.75%** with one fine-tuned on this corpus (~1 minute on
 a laptop GPU). Fine-tuning's gain shows up where the retrievers struggled,
 paraphrased questions, and holds across three random seeds
 ([details](#reranking-a-cross-encoder-fine-tuned-in-pytorch)).
+
+**On Azure AI Search**, managed hybrid search matches the hand-built version,
+but only after configuring its analyzer: the default cost 9 points of keyword
+retrieval accuracy ([details](#azure-ai-search-managed-hybrid-search)).
 
 This is a rebuild of my earlier [rag-chatbot](https://github.com/tlevin1/rag-chatbot),
 which used hand-written TF-IDF over a small FAQ.
@@ -237,6 +242,47 @@ level, and most of the end-to-end improvement comes from adding a reranker at al
   Fine-tuned weights aren't committed (≈90 MB); `python -m training.train`
   reproduces them in about a minute.
 
+## Azure AI Search: managed hybrid search
+
+The same 123 chunks with the **same MiniLM vectors** (computed locally and
+uploaded) are indexed in Azure AI Search, free tier
+(`hybrid_rag/azure_search.py`). Identical embeddings mean any difference comes
+from the search engine. Azure's hybrid mode also fuses keyword and vector
+results with reciprocal rank fusion, so it's a direct comparison with the
+hand-built version.
+
+| All 80 questions | hit@1 | hit@4 | MRR@20 |
+|---|---|---|---|
+| Hand-built BM25 (stopwords removed) | 0.562 | 0.738 | 0.649 |
+| Azure keyword, default `standard` analyzer | 0.475 | 0.688 | 0.585 |
+| **Azure keyword, `en.lucene` analyzer** | **0.562** | **0.738** | **0.656** |
+| Chroma vector | 0.425 | 0.713 | 0.556 |
+| Azure vector (HNSW) | 0.425 | 0.713 | 0.556 |
+| Hand-built hybrid (RRF) | 0.525 | 0.800 | 0.656 |
+| **Azure hybrid, `en.lucene`** | **0.537** | **0.787** | **0.650** |
+
+- **Vector search is identical** on every question: same embeddings, same
+  ranking. That confirms the comparison is fair.
+- **Keyword search depends on configuration, not the engine.** Azure's default
+  analyzer keeps stopwords, so "What did the author..." matches every chunk on
+  filler words; it lost 9 points of hit@1. The English analyzer (stopwords plus
+  stemming) matches the hand-written BM25, which removes stopwords too.
+- **Managed hybrid ≈ hand-built hybrid.** End to end, Azure hybrid answered 66
+  of 80 correctly (82.5%) vs 63 (78.75%); question by question that's 5 fixed
+  and 2 broken, sign test p = 0.45: no real difference.
+
+So the takeaway for production: a managed service gives the same quality
+without maintaining the retrieval code, *if* the analyzer is chosen
+deliberately. The free tier (50 MB, 3 indexes) holds this corpus easily.
+
+Two engineering details:
+- **Uploads are indexed asynchronously.** In the first test, searches right
+  after upload hit a half-built index and keyword search returned nothing. The
+  indexer now waits until Azure reports every document before any query runs.
+- **Credentials stay out of the repo**: read from `AZURE_SEARCH_ENDPOINT` and
+  `AZURE_SEARCH_KEY` in the environment or a gitignored `.env`. The tests use a
+  fake client, so CI needs neither.
+
 ### Choices in the eval, and why
 
 - **Reference-based correctness instead of Phoenix's built-in correctness
@@ -259,7 +305,7 @@ python3.13 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt          # app + tests
 pip install -r requirements-eval.txt         # Phoenix, for the answer-quality eval
 
-python -m pytest -q                          # 36 tests: offline, no model download, no API key
+python -m pytest -q                          # 44 tests: offline, no model download, no API key
 
 export ANTHROPIC_API_KEY=...
 uvicorn hybrid_rag.app:app --reload          # downloads the essay and the embedding model on first run
@@ -278,6 +324,11 @@ python -m training.train --seed 1 --out models/reranker-ft-seed1 --report report
 python -m training.train --seed 2 --out models/reranker-ft-seed2 --report reports/training-seed2.json
 python -m evals.reranker_eval                # pretrained vs each fine-tuned seed: paired tests
 python -m evals.phoenix_eval --modes hybrid+ms-marco hybrid+finetuned   # answer quality, ~$1
+
+# Azure AI Search (free tier); put AZURE_SEARCH_ENDPOINT and AZURE_SEARCH_KEY in .env
+pip install -r requirements-azure.txt
+python -m evals.retrieval_eval --azure       # free: creates the indexes, compares all retrievers
+python -m evals.phoenix_eval --modes azure-hybrid   # answer quality, ~$0.70
 ```
 
 ## Layout
@@ -287,6 +338,7 @@ hybrid_rag/
   corpus.py      download (checksum-pinned) and chunking
   retrieval.py   BM25, Chroma vector index, reciprocal rank fusion, Retriever
   rerank.py      cross-encoder reranking (PyTorch / transformers)
+  azure_search.py  Azure AI Search index: keyword, vector, managed hybrid
   generate.py    grounded answers with citations
   app.py         FastAPI: POST /ask {question, mode, top_k}
 evals/
