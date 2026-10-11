@@ -1,5 +1,14 @@
 {
   "direct": {
+    "azure-hybrid": {
+      "n": 40,
+      "precision@4": 0.325,
+      "ndcg@4": 0.911,
+      "hit": 0.975,
+      "correct": 0.925,
+      "faithful": 1.0,
+      "refused": 0.05
+    },
     "bm25": {
       "n": 40,
       "precision@4": 0.294,
@@ -47,6 +56,15 @@
     }
   },
   "paraphrased": {
+    "azure-hybrid": {
+      "n": 40,
+      "precision@4": 0.275,
+      "ndcg@4": 0.642,
+      "hit": 0.75,
+      "correct": 0.725,
+      "faithful": 1.0,
+      "refused": 0.275
+    },
     "bm25": {
       "n": 40,
       "precision@4": 0.206,
@@ -94,6 +112,15 @@
     }
   },
   "all": {
+    "azure-hybrid": {
+      "n": 80,
+      "precision@4": 0.3,
+      "ndcg@4": 0.776,
+      "hit": 0.863,
+      "correct": 0.825,
+      "faithful": 1.0,
+      "refused": 0.163
+    },
     "bm25": {
       "n": 80,
       "precision@4": 0.25,

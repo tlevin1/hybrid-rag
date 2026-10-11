@@ -9,6 +9,7 @@ LLM-judged relevance in phoenix_eval.py catches that).
 
     python -m evals.retrieval_eval              # writes reports/retrieval.json
     python -m evals.retrieval_eval --rerank     # also hybrid + each cross-encoder (needs requirements-train.txt)
+    python -m evals.retrieval_eval --azure      # also Azure AI Search keyword / vector / hybrid (needs .env)
 """
 
 from __future__ import annotations
@@ -58,6 +59,7 @@ def rerankers() -> dict:
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--rerank", action="store_true", help="also evaluate cross-encoder reranking")
+    p.add_argument("--azure", action="store_true", help="also evaluate Azure AI Search")
     a = p.parse_args()
     retriever = Retriever(load_chunks(), persist_dir="data/chroma")
     questions = load_questions()
@@ -65,6 +67,15 @@ def main() -> None:
     if a.rerank:
         for name, ce in rerankers().items():
             searchers[name] = lambda q, ce=ce: retriever.search_reranked(q, ce, DEPTH)
+    if a.azure:
+        from hybrid_rag.azure_search import AzureSearchIndex
+
+        az = AzureSearchIndex(load_chunks())  # English analyzer
+        # Same chunks under Azure's default analyzer, to show what configuration costs.
+        az_std = AzureSearchIndex(load_chunks(), index_name="hybrid-rag-chunks", analyzer=None)
+        searchers["azure-keyword-std"] = lambda q: az_std.search(q, DEPTH, "keyword")
+        for mode in ("keyword", "vector", "hybrid"):
+            searchers[f"azure-{mode}"] = lambda q, m=mode: az.search(q, DEPTH, m)
     report: dict = {}
     for style in ("direct", "paraphrased", "all"):
         qs = [q for q in questions if style == "all" or q["style"] == style]

@@ -48,6 +48,7 @@ from .retrieval_eval import load_questions
 ROOT = Path(__file__).resolve().parent.parent
 REPORTS = ROOT / "reports"
 RERANK_MODES = {"hybrid+ms-marco": None, "hybrid+finetuned": ROOT / "models" / "reranker-ft"}
+AZURE_MODES = ("azure-hybrid",)
 ANSWERS = REPORTS / "answers.jsonl"
 REPORT = REPORTS / "answer_quality.json"
 TOP_K = 4
@@ -71,6 +72,11 @@ declines to answer."""
 def searcher(mode: str, retriever):
     if mode in MODES:
         return lambda q: retriever.search(q, k=TOP_K, mode=mode)
+    if mode in AZURE_MODES:
+        from hybrid_rag.azure_search import AzureSearchIndex  # needs .env credentials
+
+        az = AzureSearchIndex(load_chunks())
+        return lambda q: az.search(q, k=TOP_K, mode=mode.removeprefix("azure-"))
     from hybrid_rag.rerank import PRETRAINED, CrossEncoder  # PyTorch only when reranking
 
     path = RERANK_MODES[mode]
@@ -169,7 +175,7 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--reuse-answers", action="store_true", help="re-judge reports/answers.jsonl")
     p.add_argument("--limit", type=int, help="only the first N questions (a cheap smoke test)")
-    p.add_argument("--modes", nargs="+", default=list(MODES), choices=[*MODES, *RERANK_MODES])
+    p.add_argument("--modes", nargs="+", default=list(MODES), choices=[*MODES, *RERANK_MODES, *AZURE_MODES])
     a = p.parse_args()
     REPORTS.mkdir(exist_ok=True)
 
@@ -195,7 +201,7 @@ def main() -> None:
     REPORT.write_text(json.dumps(report, indent=2))
 
     print(f"\n{'questions':18} {'retriever':17} {'prec@4':>7} {'ndcg@4':>7} {'hit':>5} {'correct':>8} {'faithful':>9} {'refused':>8}")
-    order = [*MODES, *RERANK_MODES]
+    order = [*MODES, *RERANK_MODES, *AZURE_MODES]
     for style, by_mode in report.items():
         for mode in sorted(by_mode, key=order.index):
             m = by_mode[mode]
