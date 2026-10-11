@@ -19,9 +19,13 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: |
+          pip install -r requirements-dev.txt
+          # CPU-only PyTorch: the reranker tests use a tiny model built in the test.
+          pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install transformers==5.19.0
 
-      # Offline: a tiny deterministic embedding stands in for the real model and a
-      # fake LLM stands in for Claude, so no model download and no API key.
+      # Offline: a deterministic embedding, a fake LLM and a tiny randomly initialized
+      # BERT stand in for the real models, so no downloads and no API key.
       - name: Run tests
         run: python -m pytest -q
