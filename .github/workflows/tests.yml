@@ -24,6 +24,7 @@ jobs:
           # CPU-only PyTorch: the reranker tests use a tiny model built in the test.
           pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
           pip install transformers==5.19.0
+          pip install -r requirements-azure.txt  # Azure tests use a fake client; no credentials
 
       # Offline: a deterministic embedding, a fake LLM and a tiny randomly initialized
       # BERT stand in for the real models, so no downloads and no API key.
